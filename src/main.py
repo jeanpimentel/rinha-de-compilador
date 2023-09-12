@@ -1,3 +1,4 @@
+import copy
 import json
 import sys
 from pprint import pprint
@@ -9,90 +10,105 @@ def read_ast(path: str) -> dict:
     return data
 
 
-def evaluate(param, env):
-    if param["kind"] == "Print":
-        to_print = evaluate(param["value"], env)
+def evaluate(node, env):
+    if "expression" in node:
+        return evaluate(node["expression"], env)
+
+    if node["kind"] == "Print":
+        to_print = evaluate(node["value"], env)
         if isinstance(to_print, bool):
             print("true" if to_print else "false")
+        elif isinstance(to_print, tuple) and callable(to_print[1]):
+            print("<#closure>")
         else:
             print(to_print)
         return
 
-    if param["kind"] == "Let":
-        value = evaluate(param["value"], env)
-        if param["name"]["text"] != "_":
-            env[param["name"]["text"]] = value
-        if param["next"]:
-            return evaluate(param["next"], env)
+    if node["kind"] == "Let":
+        value = evaluate(node["value"], env)
+        if node["name"]["text"] != "_":
+            env[node["name"]["text"]] = value
+        if node["next"]:
+            return evaluate(node["next"], env)
 
-    if param["kind"] == "Binary":
-        lhs = evaluate(param["lhs"], env)
-        rhs = evaluate(param["rhs"], env)
-        if param["op"] == "Add":
+    if node["kind"] == "Binary":
+        lhs = evaluate(node["lhs"], env)
+        rhs = evaluate(node["rhs"], env)
+        if node["op"] == "Add":
+            if isinstance(lhs, str) or isinstance(rhs, str):
+                return str(lhs) + str(rhs)
             return lhs + rhs
-        if param["op"] == "Sub":
+        if node["op"] == "Sub":
             return lhs - rhs
-        if param["op"] == "Mul":
+        if node["op"] == "Mul":
             return lhs * rhs
-        if param["op"] == "Div":
+        if node["op"] == "Div":
             return lhs / rhs
-        if param["op"] == "Mod":
+        if node["op"] == "Mod":
             return lhs % rhs
-        if param["op"] == "Eq":
+        if node["op"] == "Eq":
             return lhs == rhs
-        if param["op"] == "Neq":
+        if node["op"] == "Neq":
             return lhs != rhs
-        if param["op"] == "Lt":
+        if node["op"] == "Lt":
             return lhs < rhs
-        if param["op"] == "Gt":
+        if node["op"] == "Gt":
             return lhs > rhs
-        if param["op"] == "Lte":
+        if node["op"] == "Lte":
             return lhs <= rhs
-        if param["op"] == "Gte":
+        if node["op"] == "Gte":
             return lhs >= rhs
-        if param["op"] == "And":
+        if node["op"] == "And":
             return lhs and rhs
-        if param["op"] == "Or":
+        if node["op"] == "Or":
             return lhs or rhs
 
-    if param["kind"] == "If":
-        if evaluate(param["condition"], env):
-            return evaluate(param["then"], env)
+    if node["kind"] == "If":
+        if evaluate(node["condition"], env):
+            return evaluate(node["then"], env)
         else:
-            return evaluate(param["otherwise"], env)
+            return evaluate(node["otherwise"], env)
 
-    if param["kind"] == "Var":
-        return env[param["text"]]
+    if node["kind"] == "Var":
+        return env[node["text"]]
 
-    if param["kind"] == "Str":
-        return str(param["value"])
+    if node["kind"] == "Str":
+        return str(node["value"])
 
-    if param["kind"] == "Int":
-        return int(param["value"])
+    if node["kind"] == "Int":
+        return int(node["value"])
 
-    if param["kind"] == "Bool":
-        return bool(param["value"])
+    if node["kind"] == "Bool":
+        return bool(node["value"])
 
-    if param["kind"] == "Tuple":
+    if node["kind"] == "Tuple":
         return (
-            evaluate(param["first"], env),
-            evaluate(param["second"], env),
+            evaluate(node["first"], env),
+            evaluate(node["second"], env),
         )
 
-    if param["kind"] == "First":
-        return evaluate(param["value"]["first"], env)
+    if node["kind"] == "First":
+        return evaluate(node["value"]["first"], env)
 
-    if param["kind"] == "Second":
-        return evaluate(param["value"]["second"], env)
+    if node["kind"] == "Second":
+        return evaluate(node["value"]["second"], env)
 
-    if param["kind"] == "Function":
-        raise Exception("Function not implemented")
+    if node["kind"] == "Function":
+        parameters = [p["text"] for p in node["parameters"]]
+        fn = lambda fn_env: evaluate(node["value"], fn_env)
+        return parameters, fn
 
-    if param["kind"] == "Call":
-        raise Exception("Call not implemented")
+    if node["kind"] == "Call":
+        fn_env = copy.deepcopy(env)
 
+        parameters, fn = evaluate(node["callee"], env)
+        arguments = [evaluate(a, env) for a in node["arguments"]]
+        for name, value in zip(parameters, arguments):
+            fn_env[name] = value
+
+        return fn(fn_env)
     else:
-        raise Exception("unknown kind " + param["kind"])
+        raise Exception("unknown kind " + node["kind"])
 
 
 if __name__ == "__main__":
@@ -100,4 +116,4 @@ if __name__ == "__main__":
     # pprint(ast)
 
     env = {}
-    evaluate(ast["expression"], env)
+    evaluate(ast, env)
