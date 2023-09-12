@@ -1,0 +1,3 @@
+[submodule "references/rinha-de-compilador"]
+	path = references/rinha-de-compilador
+	url = https://github.com/aripiprazole/rinha-de-compiler
