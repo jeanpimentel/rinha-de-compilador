@@ -14,14 +14,14 @@ def evaluate(node, scope):
         return evaluate(node["expression"], scope)
 
     if node["kind"] == "Print":
-        to_print = evaluate(node["value"], scope)
-        if isinstance(to_print, bool):
-            print("true" if to_print else "false")
-        elif isinstance(to_print, tuple) and callable(to_print[1]):
+        content = evaluate(node["value"], scope)
+        if isinstance(content, bool):
+            print("true" if content else "false")
+        elif isinstance(content, tuple) and callable(content[1]):
             print("<#closure>")
         else:
-            print(to_print)
-        return
+            print(content)
+        return content
 
     if node["kind"] == "Let":
         value = evaluate(node["value"], scope)
