@@ -1,7 +1,6 @@
 import copy
 import json
 import sys
-from pprint import pprint
 
 
 def read_ast(path: str) -> dict:
@@ -10,12 +9,12 @@ def read_ast(path: str) -> dict:
     return data
 
 
-def evaluate(node, env):
+def evaluate(node, scope):
     if "expression" in node:
-        return evaluate(node["expression"], env)
+        return evaluate(node["expression"], scope)
 
     if node["kind"] == "Print":
-        to_print = evaluate(node["value"], env)
+        to_print = evaluate(node["value"], scope)
         if isinstance(to_print, bool):
             print("true" if to_print else "false")
         elif isinstance(to_print, tuple) and callable(to_print[1]):
@@ -25,15 +24,15 @@ def evaluate(node, env):
         return
 
     if node["kind"] == "Let":
-        value = evaluate(node["value"], env)
+        value = evaluate(node["value"], scope)
         if node["name"]["text"] != "_":
-            env[node["name"]["text"]] = value
+            scope[node["name"]["text"]] = value
         if node["next"]:
-            return evaluate(node["next"], env)
+            return evaluate(node["next"], scope)
 
     if node["kind"] == "Binary":
-        lhs = evaluate(node["lhs"], env)
-        rhs = evaluate(node["rhs"], env)
+        lhs = evaluate(node["lhs"], scope)
+        rhs = evaluate(node["rhs"], scope)
         if node["op"] == "Add":
             if isinstance(lhs, str) or isinstance(rhs, str):
                 return str(lhs) + str(rhs)
@@ -64,13 +63,13 @@ def evaluate(node, env):
             return lhs or rhs
 
     if node["kind"] == "If":
-        if evaluate(node["condition"], env):
-            return evaluate(node["then"], env)
+        if evaluate(node["condition"], scope):
+            return evaluate(node["then"], scope)
         else:
-            return evaluate(node["otherwise"], env)
+            return evaluate(node["otherwise"], scope)
 
     if node["kind"] == "Var":
-        return env[node["text"]]
+        return scope[node["text"]]
 
     if node["kind"] == "Str":
         return str(node["value"])
@@ -83,37 +82,37 @@ def evaluate(node, env):
 
     if node["kind"] == "Tuple":
         return (
-            evaluate(node["first"], env),
-            evaluate(node["second"], env),
+            evaluate(node["first"], scope),
+            evaluate(node["second"], scope),
         )
 
     if node["kind"] == "First":
-        return evaluate(node["value"]["first"], env)
+        return evaluate(node["value"]["first"], scope)
 
     if node["kind"] == "Second":
-        return evaluate(node["value"]["second"], env)
+        return evaluate(node["value"]["second"], scope)
 
     if node["kind"] == "Function":
         parameters = [p["text"] for p in node["parameters"]]
-        fn = lambda fn_env: evaluate(node["value"], fn_env)
+        fn = lambda fn_scope: evaluate(node["value"], fn_scope)
         return parameters, fn
 
     if node["kind"] == "Call":
-        fn_env = copy.deepcopy(env)
+        fn_scope = copy.deepcopy(scope)
 
-        parameters, fn = evaluate(node["callee"], env)
-        arguments = [evaluate(a, env) for a in node["arguments"]]
+        parameters, fn = evaluate(node["callee"], scope)
+        arguments = [evaluate(a, scope) for a in node["arguments"]]
         for name, value in zip(parameters, arguments):
-            fn_env[name] = value
+            fn_scope[name] = value
 
-        return fn(fn_env)
-    else:
-        raise Exception("unknown kind " + node["kind"])
+        return fn(fn_scope)
+
+    raise Exception("Unknown kind " + node["kind"])
 
 
 if __name__ == "__main__":
     ast = read_ast(sys.argv[1])
     # pprint(ast)
 
-    env = {}
-    evaluate(ast, env)
+    global_scope = {}
+    evaluate(ast, global_scope)
