@@ -2,6 +2,8 @@ import copy
 import json
 import sys
 
+IMPURE_FUNCTIONS = []
+
 
 def read_ast(path: str) -> dict:
     with open(path, "r") as f:
@@ -10,10 +12,15 @@ def read_ast(path: str) -> dict:
 
 
 def evaluate(node, scope):
+    global IMPURE_FUNCTIONS
+
     if "expression" in node:
         return evaluate(node["expression"], scope)
 
     if node["kind"] == "Print":
+        if "#fn_id" in scope:
+            IMPURE_FUNCTIONS.append(scope["#fn_id"])
+
         content = evaluate(node["value"], scope)
         if isinstance(content, bool):
             print("true" if content else "false")
@@ -94,12 +101,22 @@ def evaluate(node, scope):
 
     if node["kind"] == "Function":
         parameters = [p["text"] for p in node["parameters"]]
+
         current_scope = copy.deepcopy(scope)
-        fn = lambda args: evaluate(node["value"], current_scope | args)
-        return parameters, fn
+
+        fn_id = (
+            node["location"]["start"],
+            node["location"]["start"],
+        ) + tuple(parameters)
+
+        fn = lambda args: evaluate(
+            node["value"], current_scope | args | {"#fn_id": fn_id}
+        )
+
+        return parameters, fn, fn_id
 
     if node["kind"] == "Call":
-        parameters, fn = evaluate(node["callee"], scope)
+        parameters, fn, fn_id = evaluate(node["callee"], scope)
         arguments = [evaluate(a, scope) for a in node["arguments"]]
 
         kwargs = dict(zip(parameters, arguments))
@@ -116,5 +133,11 @@ if __name__ == "__main__":
     ast = read_ast(sys.argv[1])
     # pprint(ast)
 
+    # print(sys.getrecursionlimit())
+    sys.setrecursionlimit(10000)
+
     global_scope = {}
     evaluate(ast, global_scope)
+
+    print("\n\nImpure functions:")
+    print(IMPURE_FUNCTIONS)
