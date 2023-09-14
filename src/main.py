@@ -2,7 +2,10 @@ import copy
 import json
 import sys
 
+USE_MEMOIZE = True
+
 IMPURE_FUNCTIONS = []
+MEMOIZED_FUNCTIONS = {}
 
 
 def read_ast(path: str) -> dict:
@@ -122,7 +125,16 @@ def evaluate(node, scope):
         kwargs = dict(zip(parameters, arguments))
         kwargs[node["callee"]["text"]] = scope[node["callee"]["text"]]
 
+        memoization_key = None
+        if USE_MEMOIZE:
+            memoization_key = (fn_id, tuple(arguments))
+            if memoization_key in MEMOIZED_FUNCTIONS:
+                return MEMOIZED_FUNCTIONS[memoization_key]
+
         result = fn(kwargs)
+
+        if USE_MEMOIZE and fn_id not in IMPURE_FUNCTIONS:
+            MEMOIZED_FUNCTIONS[memoization_key] = result
 
         return result
 
