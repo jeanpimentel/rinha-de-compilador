@@ -94,18 +94,20 @@ def evaluate(node, scope):
 
     if node["kind"] == "Function":
         parameters = [p["text"] for p in node["parameters"]]
-        fn = lambda fn_scope: evaluate(node["value"], fn_scope)
+        current_scope = copy.deepcopy(scope)
+        fn = lambda args: evaluate(node["value"], current_scope | args)
         return parameters, fn
 
     if node["kind"] == "Call":
-        fn_scope = copy.deepcopy(scope)
-
         parameters, fn = evaluate(node["callee"], scope)
         arguments = [evaluate(a, scope) for a in node["arguments"]]
-        for name, value in zip(parameters, arguments):
-            fn_scope[name] = value
 
-        return fn(fn_scope)
+        kwargs = dict(zip(parameters, arguments))
+        kwargs[node["callee"]["text"]] = scope[node["callee"]["text"]]
+
+        result = fn(kwargs)
+
+        return result
 
     raise Exception("Unknown kind " + node["kind"])
 
