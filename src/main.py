@@ -138,7 +138,8 @@ def evaluate(node, scope):
         arguments = [evaluate(a, scope) for a in node["arguments"]]
 
         kwargs = dict(zip(parameters, arguments))
-        kwargs[node["callee"]["text"]] = scope[node["callee"]["text"]]
+        if "text" in node["callee"]:
+            kwargs[node["callee"]["text"]] = scope[node["callee"]["text"]]
 
         memoization_key = None
         if USE_MEMOIZE:
