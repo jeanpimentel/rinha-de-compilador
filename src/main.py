@@ -14,6 +14,24 @@ def read_ast(path: str) -> dict:
     return data
 
 
+def get_func_id(location, parameters):
+    fn_id = (
+        location["start"],
+        location["end"],
+    ) + tuple(parameters)
+    return fn_id
+
+
+def get_memoization_key(fn_id, arguments):
+    memo_key = fn_id
+    for arg in arguments:
+        if isinstance(arg, tuple) and callable(arg[1]):
+            memo_key += (arg[2],)
+        else:
+            memo_key += (arg,)
+    return memo_key
+
+
 def evaluate(node, scope):
     global IMPURE_FUNCTIONS
 
@@ -107,10 +125,7 @@ def evaluate(node, scope):
 
         current_scope = copy.deepcopy(scope)
 
-        fn_id = (
-            node["location"]["start"],
-            node["location"]["start"],
-        ) + tuple(parameters)
+        fn_id = get_func_id(node["location"], parameters)
 
         fn = lambda args: evaluate(
             node["value"], current_scope | args | {"#fn_id": fn_id}
@@ -127,7 +142,7 @@ def evaluate(node, scope):
 
         memoization_key = None
         if USE_MEMOIZE:
-            memoization_key = (fn_id, tuple(arguments))
+            memoization_key = get_memoization_key(fn_id, arguments)
             if memoization_key in MEMOIZED_FUNCTIONS:
                 return MEMOIZED_FUNCTIONS[memoization_key]
 
